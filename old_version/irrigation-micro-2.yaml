@@ -1,0 +1,1609 @@
+esphome:
+  name: irrigation-micro-2
+  friendly_name: Irrigation_micro_2
+  includes:
+    - irrigation.h
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  id: ha_api
+  encryption:
+    key: "9lMZl9GNWKbU0Xq2Zqbz4FnXtPONagObo5sFGl1wbHQ="
+
+ota:
+  - platform: esphome
+    password: "075ea10192d1ae35844cd0d33e88d2af"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  id: wifi_01
+  # Disable rebooting due to losing connection with Home Assistant. This will allow
+  # the watering schedule to continue if Home Assistant goes down. Should it become
+  # unresponsive, we can have Home Assistant power cycle a smart plug to reboot it.
+  reboot_timeout: 0s
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Irrigation-Micro-2"
+    password: "Tbgs0HxpnHJM"
+
+substitutions:
+  friendly_name: Irrigation-dev
+  id: irrigation-dev
+  hostname: irrigation-dev
+  irrigation_name: Irrigation
+  irrigation_times_entity: input_text.irrigation_dev_times
+
+  zone2_name: Pool filler
+  zone2_times_entity: input_text.pool_filler_times
+
+  pin_amount: "4"
+
+captive_portal:
+# Prod copy from here
+# Time
+time:
+  - platform: homeassistant
+    #sntp
+    id: sync_time
+    timezone: Europe/Berlin
+    on_time:
+      # Every 5 minutes
+      - seconds: 0
+        minutes: /2
+        then:
+          - lambda: |-
+              //id(pin1).toggle();
+              if (scheduled_runtime(id(irrigation_next).state.c_str()) && id(scheduled_watering_activated).state) {
+                id(irrigation_zone0).turn_on();
+              }
+              //if (scheduled_runtime(id(irrigation_zone2_next).state.c_str())) {
+              //  id(irrigation_zone2).turn_on();
+              //}
+
+####################################################
+globals:
+  # ============================================================================= #
+  # Irrigation time remaining
+  
+  - id: remaining_time0
+    type: int
+    restore_value: yes
+    initial_value: "300"
+  
+  - id: remaining_time1
+    type: int
+    restore_value: yes
+    initial_value: "300"
+  
+  - id: remaining_time2
+    type: int
+    restore_value: yes
+    initial_value: "300"
+  
+  - id: remaining_time3
+    type: int
+    restore_value: yes
+    initial_value: "300"
+  
+  - id: remaining_time4
+    type: int
+    restore_value: yes
+    initial_value: "300"
+  
+  - id: remaining_time5
+    type: int
+    restore_value: yes
+    initial_value: "300"
+  
+  - id: remaining_time6
+    type: int
+    restore_value: yes
+    initial_value: "300"
+  
+  - id: remaining_time7
+    type: int
+    restore_value: yes
+    initial_value: "300"
+  
+  - id: remaining_time8
+    type: int
+    restore_value: yes
+    initial_value: "300"
+  
+  - id: remaining_time9
+    type: int
+    restore_value: yes
+    initial_value: "300"
+  
+  - id: remaining_time10
+    type: int
+    restore_value: yes
+    initial_value: "300"
+  
+  - id: remaining_time11
+    type: int
+    restore_value: yes
+    initial_value: "300"
+  # ============================================================================= #
+  # Store previous values to verify change.
+  
+  - id: remaining_time0_previous
+    type: int
+    restore_value: yes
+    initial_value: "0"
+  
+  - id: remaining_time1_previous
+    type: int
+    restore_value: yes
+    initial_value: "0"
+  
+  - id: remaining_time2_previous
+    type: int
+    restore_value: yes
+    initial_value: "0"
+  
+  - id: remaining_time3_previous
+    type: int
+    restore_value: yes
+    initial_value: "0"
+
+  - id: remaining_time4_previous
+    type: int
+    restore_value: yes
+    initial_value: "0"
+
+  - id: remaining_time5_previous
+    type: int
+    restore_value: yes
+    initial_value: "0"
+
+  - id: remaining_time6_previous
+    type: int
+    restore_value: yes
+    initial_value: "0"
+
+  - id: remaining_time7_previous
+    type: int
+    restore_value: yes
+    initial_value: "0"
+
+  - id: remaining_time8_previous
+    type: int
+    restore_value: yes
+    initial_value: "0"
+
+  - id: remaining_time9_previous
+    type: int
+    restore_value: yes
+    initial_value: "0"
+
+  - id: remaining_time10_previous
+    type: int
+    restore_value: yes
+    initial_value: "0"
+
+  - id: remaining_time11_previous
+    type: int
+    restore_value: yes
+    initial_value: "0"
+
+  # ==========================================================
+  # Store configured liter amounts
+  - id: global_liters_target
+    type: float[4]
+    restore_value: yes
+    initial_value: '{0.0, 0.0, 0.0, 0.0}'
+  
+  # ==============================
+  # Store last watered liter amount
+  - id: global_liters_watered
+    type: float[4]
+    restore_value: yes
+    initial_value: '{0.0, 0.0, 0.0, 0.0}'
+
+  # ========================================
+  # water target for the pulse counter
+  - id: water_target
+    type: float
+    restore_value: yes
+    initial_value: "0.0"
+  
+number:
+  
+  - platform: template
+    name: Zone 0 duration
+    id: irrigation_zone0_duration
+    icon: mdi:timer-sand
+    optimistic: true
+    initial_value: 0
+    restore_value: true
+    min_value: 0
+    max_value: 60
+    step: 1
+  
+  - platform: template
+    name: Zone 1 duration
+    id: irrigation_zone1_duration
+    icon: mdi:timer-sand
+    optimistic: true
+    initial_value: 0
+    restore_value: true
+    min_value: 0
+    max_value: 60
+    step: 1
+  
+  - platform: template
+    name: Zone 2 duration
+    id: irrigation_zone2_duration
+    icon: mdi:timer-sand
+    optimistic: true
+    initial_value: 0
+    restore_value: true
+    min_value: 0
+    max_value: 60
+    step: 1
+  
+  - platform: template
+    name: Zone 3 duration
+    id: irrigation_zone3_duration
+    icon: mdi:timer-sand
+    optimistic: true
+    initial_value: 0
+    restore_value: true
+    min_value: 0
+    max_value: 60
+    step: 1
+
+  - platform: template
+    name: Zone 4 duration
+    id: irrigation_zone4_duration
+    icon: mdi:timer-sand
+    optimistic: true
+    initial_value: 0
+    restore_value: true
+    min_value: 0
+    max_value: 60
+    step: 1
+
+  - platform: template
+    name: Zone 5 duration
+    id: irrigation_zone5_duration
+    icon: mdi:timer-sand
+    optimistic: true
+    initial_value: 0
+    restore_value: true
+    min_value: 0
+    max_value: 60
+    step: 1
+
+  - platform: template
+    name: Zone 6 duration
+    id: irrigation_zone6_duration
+    icon: mdi:timer-sand
+    optimistic: true
+    initial_value: 0
+    restore_value: true
+    min_value: 0
+    max_value: 60
+    step: 1
+
+  - platform: template
+    name: Zone 7 duration
+    id: irrigation_zone7_duration
+    icon: mdi:timer-sand
+    optimistic: true
+    initial_value: 0
+    restore_value: true
+    min_value: 0
+    max_value: 60
+    step: 1
+
+  - platform: template
+    name: Zone 8 duration
+    id: irrigation_zone8_duration
+    icon: mdi:timer-sand
+    optimistic: true
+    initial_value: 0
+    restore_value: true
+    min_value: 0
+    max_value: 60
+    step: 1
+
+  - platform: template
+    name: Zone 9 duration
+    id: irrigation_zone9_duration
+    icon: mdi:timer-sand
+    optimistic: true
+    initial_value: 0
+    restore_value: true
+    min_value: 0
+    max_value: 60
+    step: 1
+
+  - platform: template
+    name: Zone 10 duration
+    id: irrigation_zone10_duration
+    icon: mdi:timer-sand
+    optimistic: true
+    initial_value: 0
+    restore_value: true
+    min_value: 0
+    max_value: 60
+    step: 1
+
+  - platform: template
+    name: Zone 11 duration
+    id: irrigation_zone11_duration
+    icon: mdi:timer-sand
+    optimistic: true
+    initial_value: 0
+    restore_value: true
+    min_value: 0
+    max_value: 60
+    step: 1
+
+  - platform: template
+    name: Zone 0 liters target
+    id: irrigation_zone0_liters_target
+    icon: mdi:water-pump
+    optimistic: true
+    initial_value: 0
+    restore_value: true
+    min_value: 0
+    max_value: 10
+    step: 0.1
+    on_value:
+      then:
+        - lambda: id(global_liters_target)[0] = id(irrigation_zone0_liters_target).state;
+            
+
+
+  - platform: template
+    name: Zone 1 liters target
+    id: irrigation_zone1_liters_target
+    icon: mdi:water-pump
+    optimistic: true
+    initial_value: 0
+    restore_value: true
+    min_value: 0
+    max_value: 10
+    step: 0.1
+
+  - platform: template
+    name: Zone 2 liters target
+    id: irrigation_zone2_liters_target
+    icon: mdi:water-pump
+    optimistic: true
+    initial_value: 0
+    restore_value: true
+    min_value: 0
+    max_value: 10
+    step: 0.1
+
+  - platform: template
+    name: Zone 3 liters target
+    id: irrigation_zone3_liters_target
+    icon: mdi:water-pump
+    optimistic: true
+    initial_value: 0
+    restore_value: true
+    min_value: 0
+    max_value: 10
+    step: 0.1
+
+sensor:
+  - platform: uptime
+    name: $friendly_name Uptime
+    unit_of_measurement: h
+    entity_category: diagnostic
+    filters:
+      - lambda: return int((x + 1800.0) / 3600.0);
+
+  - platform: wifi_signal
+    name: $friendly_name WiFi Signal
+    update_interval: 30s
+    entity_category: diagnostic
+
+  - platform: pulse_counter
+    pin: GPIO34
+    name: "Fluss"
+    update_interval: 5s
+    filters:
+      - lambda: return (x/1);
+    unit_of_measurement: "L/min"
+    total:
+      unit_of_measurement: 'L'
+      name: 'Menge'
+      filters:
+        - lambda: return (x/1); 
+      # on_value_range triggers only at crossing of the value from outside the range to inside
+      # Thats why it wont be executed indifinetely with the initial value of 0
+      on_value_range: 
+        - above: !lambda return id(water_target);
+          then: 
+            - script.execute: 
+                id: check_watering
+
+  - platform: template
+    name: Zone 0 remaining
+    id: irrigation_zone0_remaining
+    lambda: "return 0;"
+    accuracy_decimals: 0
+    unit_of_measurement: minutes
+    icon: mdi:timer-outline
+    on_value:
+      then:
+        - if:
+            condition:
+              lambda: return id(remaining_time0) == 0;
+            then:
+              - switch.turn_off: pin0
+  
+  - platform: template
+    name: Zone 1 remaining
+    id: irrigation_zone1_remaining
+    lambda: "return 0;"
+    accuracy_decimals: 0
+    unit_of_measurement: minutes
+    icon: mdi:timer-outline
+    on_value:
+      then:
+        - if:
+            condition:
+              lambda: return id(remaining_time1) == 0;
+            then:
+              - switch.turn_off: pin1
+  
+  - platform: template
+    name: Zone 2 remaining
+    id: irrigation_zone2_remaining
+    lambda: "return 0;"
+    accuracy_decimals: 0
+    unit_of_measurement: minutes
+    icon: mdi:timer-outline
+    on_value:
+      then:
+        - if:
+            condition:
+              lambda: return id(remaining_time2) == 0;
+            then:
+              - switch.turn_off: pin2
+  
+  - platform: template
+    name: Zone 3 remaining
+    id: irrigation_zone3_remaining
+    lambda: "return 0;"
+    accuracy_decimals: 0
+    unit_of_measurement: minutes
+    icon: mdi:timer-outline
+    on_value:
+      then:
+        - if:
+            condition:
+              lambda: return id(remaining_time3) == 0;
+            then:
+              - switch.turn_off: pin3
+
+  - platform: template
+    name: Zone 4 remaining
+    id: irrigation_zone4_remaining
+    lambda: "return 0;"
+    accuracy_decimals: 0
+    unit_of_measurement: minutes
+    icon: mdi:timer-outline
+    on_value:
+      then:
+        - if:
+            condition:
+              lambda: return id(remaining_time4) == 0;
+            then:
+              - switch.turn_off: pin4
+
+  - platform: template
+    name: Zone 5 remaining
+    id: irrigation_zone5_remaining
+    lambda: "return 0;"
+    accuracy_decimals: 0
+    unit_of_measurement: minutes
+    icon: mdi:timer-outline
+    on_value:
+      then:
+        - if:
+            condition:
+              lambda: return id(remaining_time5) == 0;
+            then:
+              - switch.turn_off: pin5
+
+  - platform: template
+    name: Zone 6 remaining
+    id: irrigation_zone6_remaining
+    lambda: "return 0;"
+    accuracy_decimals: 0
+    unit_of_measurement: minutes
+    icon: mdi:timer-outline
+    on_value:
+      then:
+        - if:
+            condition:
+              lambda: return id(remaining_time6) == 0;
+            then:
+              - switch.turn_off: pin6
+
+  - platform: template
+    name: Zone 7 remaining
+    id: irrigation_zone7_remaining
+    lambda: "return 0;"
+    accuracy_decimals: 0
+    unit_of_measurement: minutes
+    icon: mdi:timer-outline
+    on_value:
+      then:
+        - if:
+            condition:
+              lambda: return id(remaining_time7) == 0;
+            then:
+              - switch.turn_off: pin7
+
+  - platform: template
+    name: Zone 8 remaining
+    id: irrigation_zone8_remaining
+    lambda: "return 0;"
+    accuracy_decimals: 0
+    unit_of_measurement: minutes
+    icon: mdi:timer-outline
+    on_value:
+      then:
+        - if:
+            condition:
+              lambda: return id(remaining_time8) == 0;
+            then:
+              - switch.turn_off: pin8
+
+  - platform: template
+    name: Zone 9 remaining
+    id: irrigation_zone9_remaining
+    lambda: "return 0;"
+    accuracy_decimals: 0
+    unit_of_measurement: minutes
+    icon: mdi:timer-outline
+    on_value:
+      then:
+        - if:
+            condition:
+              lambda: return id(remaining_time9) == 0;
+            then:
+              - switch.turn_off: pin9
+
+  - platform: template
+    name: Zone 10 remaining
+    id: irrigation_zone10_remaining
+    lambda: "return 0;"
+    accuracy_decimals: 0
+    unit_of_measurement: minutes
+    icon: mdi:timer-outline
+    on_value:
+      then:
+        - if:
+            condition:
+              lambda: return id(remaining_time10) == 0;
+            then:
+              - switch.turn_off: pin10
+
+  - platform: template
+    name: Zone 11 remaining
+    id: irrigation_zone11_remaining
+    lambda: "return 0;"
+    accuracy_decimals: 0
+    unit_of_measurement: minutes
+    icon: mdi:timer-outline
+    on_value:
+      then:
+        - if:
+            condition:
+              lambda: return id(remaining_time11) == 0;
+            then:
+              - switch.turn_off: pin11
+
+
+ 
+  - platform: template
+    name: Zone 0 liters remaining
+    id: irrigation_zone0_liters_remaining
+    lambda: "return 0;"
+    accuracy_decimals: 3
+    unit_of_measurement: L
+    icon: mdi:watering-can
+  
+  - platform: template
+    name: Zone 1 liters remaining
+    id: irrigation_zone1_liters_remaining
+    lambda: "return 0;"
+    accuracy_decimals: 3
+    unit_of_measurement: L
+    icon: mdi:watering-can
+  
+  - platform: template
+    name: Zone 2 liters remaining
+    id: irrigation_zone2_liters_remaining
+    lambda: "return 0;"
+    accuracy_decimals: 3
+    unit_of_measurement: L
+    icon: mdi:watering-can
+  
+  - platform: template
+    name: Zone 3 liters remaining
+    id: irrigation_zone3_liters_remaining
+    lambda: "return 0;"
+    accuracy_decimals: 3
+    unit_of_measurement: L
+    icon: mdi:watering-can
+
+text_sensor:
+  # ============================================================================= #
+  # Retrieve list of times from the Home Assistant UI.
+  - platform: homeassistant
+    id: ui_irrigation_start
+    entity_id: $irrigation_times_entity
+    on_value:
+      then:
+        #- delay: 10sec
+        - text_sensor.template.publish:
+            id: irrigation_times
+            state: !lambda return id(ui_irrigation_start).state;
+
+  # ============================================================================= #
+  # Store time lists.
+  - platform: template
+    name: $irrigation_name times
+    id: irrigation_times
+    on_value:
+      then:
+        # Update the next scheduled run time.
+        - text_sensor.template.publish:
+            id: irrigation_next
+            state: !lambda |-
+              return update_next_runtime(id(irrigation_times).state);
+
+  # ============================================================================= #
+  # Set the next scheduled time.
+  - platform: template
+    name: $irrigation_name next
+    id: irrigation_next
+
+script:
+  - id: check_watering
+    then:
+      - lambda: |-
+          return;
+
+# Update the countdown timers every 5 seconds.
+interval:
+  - interval: 5s
+    then:
+      - lambda: |-
+          
+          if (id(remaining_time0) > 0) {
+            // Store the previous time.
+            id(remaining_time0_previous) = id(remaining_time0);
+
+            // When the pin is on.
+            if (id(pin0).state) {
+              // Decrement the timer.
+              id(remaining_time0) -= 5;
+
+              // Turn off the pin when the time reaches zero... or the remaining time fails a sanity check!
+              //if (id(remaining_time0) <= 0 || id(irrigation_zone0_remaining).state > id(irrigation_zone0_duration).state){
+              if (id(remaining_time0) <= 0) {
+                id(pin0).turn_off();
+                id(remaining_time0) = 0;
+                // Jinja 2 if to turn on next pin
+                
+                  id(irrigation_zone1).turn_on();
+                
+              }
+            }
+
+            // Update the remaining time display.
+            if (id(remaining_time0_previous) != id(remaining_time0)) {
+              id(irrigation_zone0_remaining).publish_state( (id(remaining_time0)/60) + 1 );
+            }
+          }
+          
+          if (id(remaining_time1) > 0) {
+            // Store the previous time.
+            id(remaining_time1_previous) = id(remaining_time1);
+
+            // When the pin is on.
+            if (id(pin1).state) {
+              // Decrement the timer.
+              id(remaining_time1) -= 5;
+
+              // Turn off the pin when the time reaches zero... or the remaining time fails a sanity check!
+              //if (id(remaining_time1) <= 0 || id(irrigation_zone1_remaining).state > id(irrigation_zone1_duration).state){
+              if (id(remaining_time1) <= 0) {
+                id(pin1).turn_off();
+                id(remaining_time1) = 0;
+                // Jinja 2 if to turn on next pin
+                
+                  id(irrigation_zone2).turn_on();
+                
+              }
+            }
+
+            // Update the remaining time display.
+            if (id(remaining_time1_previous) != id(remaining_time1)) {
+              id(irrigation_zone1_remaining).publish_state( (id(remaining_time1)/60) + 1 );
+            }
+          }
+          
+          if (id(remaining_time2) > 0) {
+            // Store the previous time.
+            id(remaining_time2_previous) = id(remaining_time2);
+
+            // When the pin is on.
+            if (id(pin2).state) {
+              // Decrement the timer.
+              id(remaining_time2) -= 5;
+
+              // Turn off the pin when the time reaches zero... or the remaining time fails a sanity check!
+              //if (id(remaining_time2) <= 0 || id(irrigation_zone2_remaining).state > id(irrigation_zone2_duration).state){
+              if (id(remaining_time2) <= 0) {
+                id(pin2).turn_off();
+                id(remaining_time2) = 0;
+                // Jinja 2 if to turn on next pin
+                
+                  id(irrigation_zone3).turn_on();
+                
+              }
+            }
+
+            // Update the remaining time display.
+            if (id(remaining_time2_previous) != id(remaining_time2)) {
+              id(irrigation_zone2_remaining).publish_state( (id(remaining_time2)/60) + 1 );
+            }
+          }
+          
+          if (id(remaining_time3) > 0) {
+            // Store the previous time.
+            id(remaining_time3_previous) = id(remaining_time3);
+
+            // When the pin is on.
+            if (id(pin3).state) {
+              // Decrement the timer.
+              id(remaining_time3) -= 5;
+
+              // Turn off the pin when the time reaches zero... or the remaining time fails a sanity check!
+              //if (id(remaining_time3) <= 0 || id(irrigation_zone3_remaining).state > id(irrigation_zone3_duration).state){
+              if (id(remaining_time3) <= 0) {
+                id(pin3).turn_off();
+                id(remaining_time3) = 0;
+                // Jinja 2 if to turn on next pin
+                id(irrigation_zone4).turn_on();
+                
+              }
+            }
+
+            // Update the remaining time display.
+            if (id(remaining_time3_previous) != id(remaining_time3)) {
+              id(irrigation_zone3_remaining).publish_state( (id(remaining_time3)/60) + 1 );
+            }
+          }
+
+          if (id(remaining_time4) > 0) {
+            // Store the previous time.
+            id(remaining_time4_previous) = id(remaining_time4);
+
+            // When the pin is on.
+            if (id(pin4).state) {
+              // Decrement the timer.
+              id(remaining_time4) -= 5;
+
+              // Turn off the pin when the time reaches zero... or the remaining time fails a sanity check!
+              //if (id(remaining_time4) <= 0 || id(irrigation_zone4_remaining).state > id(irrigation_zone4_duration).state){
+              if (id(remaining_time4) <= 0) {
+                id(pin4).turn_off();
+                id(remaining_time4) = 0;
+                // Jinja 2 if to turn on next pin
+                id(irrigation_zone5).turn_on();
+              }
+            }
+
+            // Update the remaining time display.
+            if (id(remaining_time4_previous) != id(remaining_time4)) {
+              id(irrigation_zone4_remaining).publish_state( (id(remaining_time4)/60) + 1 );
+            }
+          }
+
+          if (id(remaining_time5) > 0) {
+            // Store the previous time.
+            id(remaining_time5_previous) = id(remaining_time5);
+
+            // When the pin is on.
+            if (id(pin5).state) {
+              // Decrement the timer.
+              id(remaining_time5) -= 5;
+
+              // Turn off the pin when the time reaches zero... or the remaining time fails a sanity check!
+              //if (id(remaining_time5) <= 0 || id(irrigation_zone5_remaining).state > id(irrigation_zone5_duration).state){
+              if (id(remaining_time5) <= 0) {
+                id(pin5).turn_off();
+                id(remaining_time5) = 0;
+                // Jinja 2 if to turn on next pin
+                id(irrigation_zone6).turn_on();
+              }
+            }
+
+            // Update the remaining time display.
+            if (id(remaining_time5_previous) != id(remaining_time5)) {
+              id(irrigation_zone5_remaining).publish_state( (id(remaining_time5)/60) + 1 );
+            }
+          }
+
+          if (id(remaining_time6) > 0) {
+            // Store the previous time.
+            id(remaining_time6_previous) = id(remaining_time6);
+
+            // When the pin is on.
+            if (id(pin6).state) {
+              // Decrement the timer.
+              id(remaining_time6) -= 5;
+
+              // Turn off the pin when the time reaches zero... or the remaining time fails a sanity check!
+              //if (id(remaining_time6) <= 0 || id(irrigation_zone6_remaining).state > id(irrigation_zone6_duration).state){
+              if (id(remaining_time6) <= 0) {
+                id(pin6).turn_off();
+                id(remaining_time6) = 0;
+                // Jinja 2 if to turn on next pin
+                id(irrigation_zone7).turn_on();
+              }
+            }
+
+            // Update the remaining time display.
+            if (id(remaining_time6_previous) != id(remaining_time6)) {
+              id(irrigation_zone6_remaining).publish_state( (id(remaining_time6)/60) + 1 );
+            }
+          }
+          
+          if (id(remaining_time7) > 0) {
+            // Store the previous time.
+            id(remaining_time7_previous) = id(remaining_time7);
+
+            // When the pin is on.
+            if (id(pin7).state) {
+              // Decrement the timer.
+              id(remaining_time7) -= 5;
+
+              // Turn off the pin when the time reaches zero... or the remaining time fails a sanity check!
+              //if (id(remaining_time7) <= 0 || id(irrigation_zone7_remaining).state > id(irrigation_zone7_duration).state){
+              if (id(remaining_time7) <= 0) {
+                id(pin7).turn_off();
+                id(remaining_time7) = 0;
+                // Jinja 2 if to turn on next pin
+                id(irrigation_zone8).turn_on();
+              }
+            }
+
+            // Update the remaining time display.
+            if (id(remaining_time7_previous) != id(remaining_time7)) {
+              id(irrigation_zone7_remaining).publish_state( (id(remaining_time7)/60) + 1 );
+            }
+          }
+          
+          if (id(remaining_time8) > 0) {
+            // Store the previous time.
+            id(remaining_time8_previous) = id(remaining_time8);
+
+            // When the pin is on.
+            if (id(pin8).state) {
+              // Decrement the timer.
+              id(remaining_time8) -= 5;
+
+              // Turn off the pin when the time reaches zero... or the remaining time fails a sanity check!
+              //if (id(remaining_time8) <= 0 || id(irrigation_zone8_remaining).state > id(irrigation_zone8_duration).state){
+              if (id(remaining_time8) <= 0) {
+                id(pin8).turn_off();
+                id(remaining_time8) = 0;
+                // Jinja 2 if to turn on next pin
+                id(irrigation_zone9).turn_on();
+              }
+            }
+
+            // Update the remaining time display.
+            if (id(remaining_time8_previous) != id(remaining_time8)) {
+              id(irrigation_zone8_remaining).publish_state( (id(remaining_time8)/60) + 1 );
+            }
+          }
+          
+          if (id(remaining_time9) > 0) {
+            // Store the previous time.
+            id(remaining_time9_previous) = id(remaining_time9);
+
+            // When the pin is on.
+            if (id(pin9).state) {
+              // Decrement the timer.
+              id(remaining_time9) -= 5;
+
+              // Turn off the pin when the time reaches zero... or the remaining time fails a sanity check!
+              //if (id(remaining_time9) <= 0 || id(irrigation_zone9_remaining).state > id(irrigation_zone9_duration).state){
+              if (id(remaining_time9) <= 0) {
+                id(pin9).turn_off();
+                id(remaining_time9) = 0;
+                // Jinja 2 if to turn on next pin
+                id(irrigation_zone10).turn_on();
+              }
+            }
+
+            // Update the remaining time display.
+            if (id(remaining_time9_previous) != id(remaining_time9)) {
+              id(irrigation_zone9_remaining).publish_state( (id(remaining_time9)/60) + 1 );
+            }
+          }
+          
+          if (id(remaining_time10) > 0) {
+            // Store the previous time.
+            id(remaining_time10_previous) = id(remaining_time10);
+
+            // When the pin is on.
+            if (id(pin10).state) {
+              // Decrement the timer.
+              id(remaining_time10) -= 5;
+
+              // Turn off the pin when the time reaches zero... or the remaining time fails a sanity check!
+              //if (id(remaining_time10) <= 0 || id(irrigation_zone10_remaining).state > id(irrigation_zone10_duration).state){
+              if (id(remaining_time10) <= 0) {
+                id(pin10).turn_off();
+                id(remaining_time10) = 0;
+                // Jinja 2 if to turn on next pin
+                id(irrigation_zone11).turn_on();
+              }
+            }
+
+            // Update the remaining time display.
+            if (id(remaining_time10_previous) != id(remaining_time10)) {
+              id(irrigation_zone10_remaining).publish_state( (id(remaining_time10)/60) + 1 );
+            }
+          }
+          
+          if (id(remaining_time11) > 0) {
+            // Store the previous time.
+            id(remaining_time11_previous) = id(remaining_time11);
+
+            // When the pin is on.
+            if (id(pin11).state) {
+              // Decrement the timer.
+              id(remaining_time11) -= 5;
+
+              // Turn off the pin when the time reaches zero... or the remaining time fails a sanity check!
+              //if (id(remaining_time11) <= 0 || id(irrigation_zone11_remaining).state > id(irrigation_zone11_duration).state){
+              if (id(remaining_time11) <= 0) {
+                id(pin11).turn_off();
+                id(remaining_time11) = 0;
+                // Jinja 2 if to turn on next pin
+                
+              }
+            }
+
+            // Update the remaining time display.
+            if (id(remaining_time11_previous) != id(remaining_time11)) {
+              id(irrigation_zone11_remaining).publish_state( (id(remaining_time11)/60) + 1 );
+            }
+          }
+
+#########################################################
+# display
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+  scan: false
+  frequency: 400kHz
+
+font:
+  - file: 'slkscr.ttf'
+    id: font1
+    size: 10
+
+display:
+  - platform: ssd1306_i2c
+    model: "SSD1306 128x64"
+    address: 0x3C
+    lambda: |-
+      /*it.printf(0, 0, id(font1), TextAlign::TOP_LEFT , "I value the offering");
+      it.printf(0, 10, id(font1), TextAlign::TOP_LEFT , "But I am alergic to ");
+      it.printf(0, 20, id(font1), TextAlign::TOP_LEFT , "seafood. Well not me.");
+      it.printf(0, 30, id(font1), TextAlign::TOP_LEFT , "I am just a");
+      it.printf(0, 40, id(font1), TextAlign::TOP_LEFT , "microcontroller.");
+      it.printf(0, 50, id(font1), TextAlign::TOP_LEFT , "My creator is. UwU");*/
+      if(id(wifi_01).is_connected()) {
+        it.printf(0, 0, id(font1), TextAlign::TOP_LEFT , "Wifi");
+      }
+      if(id(ha_api).is_connected()) {
+        it.printf(127, 0, id(font1), TextAlign::TOP_RIGHT , "HA API");
+      }
+      if(id(sync_time).now().is_valid()){
+        it.printf(127, 60, id(font1), TextAlign::BASELINE_RIGHT , "Sync");
+      }
+      it.strftime(0, 60, id(font1), TextAlign::BASELINE_LEFT, "%d.%m.%y %H:%M:%S", id(sync_time).now());
+      // Info about schedule
+      it.printf(0, 10, id(font1), TextAlign::LEFT, id(scheduled_watering_activated).state ? "Scheduled" : "Not scheduled");
+      it.printf(127, 10, id(font1), TextAlign::RIGHT, id(irrigation_times).state.c_str());
+      // Irrigation virtual switches
+      //
+      //auto switches = App.get_switches();
+      //for(unsigned int i = 0; i < switches.size(); i++) {
+      //  it.printf(10, 20+(i*10), id(font1), TextAlign::LEFT , "%s %s", switches[i]->get_name().c_str(), id(switches[i]).state ? "ON" : "OFF");
+      //  //in.printf("app", "switch: %s state: %d", switches[i]->get_name().c_str(), id(switches[i]).state);
+      //}
+
+# IO Expander
+pcf8574:
+  - id: 'sat1'
+    address: 0x20
+    pcf8575: false
+# Individual outputs
+switch:
+  # ============================================================================= #
+  # Virtual switches to control behaviour
+  - platform: template
+    name: "Scheduled watering Activated"
+    id: "scheduled_watering_activated"
+    optimistic: true
+  # Virtual zone Switches which toggle the pin, and store the current state.
+  
+  - platform: template
+    name: "Zone 0"
+    id: irrigation_zone0
+    lambda: return id(pin0).state;
+    optimistic: true
+    turn_on_action:
+      # Turn on if not disabled.
+      if:
+        condition:
+          #lambda: return id(irrigation_zone0_liters_target) > 0;
+          lambda: return id(irrigation_zone0_duration) > 0;
+        then:
+          - switch.turn_on: pin0
+    turn_off_action:
+      - switch.turn_off: pin0
+  
+  - platform: template
+    name: "Zone 1"
+    id: irrigation_zone1
+    lambda: return id(pin1).state;
+    optimistic: true
+    turn_on_action:
+      # Turn on if not disabled.
+      if:
+        condition:
+          lambda: return id(irrigation_zone1_duration) > 0;
+        then:
+          - switch.turn_on: pin1
+    turn_off_action:
+      - switch.turn_off: pin1
+  
+  - platform: template
+    name: "Zone 2"
+    id: irrigation_zone2
+    lambda: return id(pin2).state;
+    optimistic: true
+    turn_on_action:
+      # Turn on if not disabled.
+      if:
+        condition:
+          lambda: return id(irrigation_zone2_duration) > 0;
+        then:
+          - switch.turn_on: pin2
+    turn_off_action:
+      - switch.turn_off: pin2
+  
+  - platform: template
+    name: "Zone 3"
+    id: irrigation_zone3
+    lambda: return id(pin3).state;
+    optimistic: true
+    turn_on_action:
+      # Turn on if not disabled.
+      if:
+        condition:
+          lambda: return id(irrigation_zone3_duration) > 0;
+        then:
+          - switch.turn_on: pin3
+    turn_off_action:
+      - switch.turn_off: pin3
+
+  - platform: template
+    name: "Zone 4"
+    id: irrigation_zone4
+    lambda: return id(pin4).state;
+    optimistic: true
+    turn_on_action:
+      # Turn on if not disabled.
+      if:
+        condition:
+          lambda: return id(irrigation_zone4_duration) > 0;
+        then:
+          - switch.turn_on: pin4
+    turn_off_action:
+      - switch.turn_off: pin4
+
+  - platform: template
+    name: "Zone 5"
+    id: irrigation_zone5
+    lambda: return id(pin5).state;
+    optimistic: true
+    turn_on_action:
+      # Turn on if not disabled.
+      if:
+        condition:
+          lambda: return id(irrigation_zone5_duration) > 0;
+        then:
+          - switch.turn_on: pin5
+    turn_off_action:
+      - switch.turn_off: pin5
+
+  - platform: template
+    name: "Zone 6"
+    id: irrigation_zone6
+    lambda: return id(pin6).state;
+    optimistic: true
+    turn_on_action:
+      # Turn on if not disabled.
+      if:
+        condition:
+          lambda: return id(irrigation_zone6_duration) > 0;
+        then:
+          - switch.turn_on: pin6
+    turn_off_action:
+      - switch.turn_off: pin6
+
+  - platform: template
+    name: "Zone 7"
+    id: irrigation_zone7
+    lambda: return id(pin7).state;
+    optimistic: true
+    turn_on_action:
+      # Turn on if not disabled.
+      if:
+        condition:
+          lambda: return id(irrigation_zone7_duration) > 0;
+        then:
+          - switch.turn_on: pin7
+    turn_off_action:
+      - switch.turn_off: pin7
+
+  - platform: template
+    name: "Zone 8"
+    id: irrigation_zone8
+    lambda: return id(pin8).state;
+    optimistic: true
+    turn_on_action:
+      # Turn on if not disabled.
+      if:
+        condition:
+          lambda: return id(irrigation_zone8_duration) > 0;
+        then:
+          - switch.turn_on: pin8
+    turn_off_action:
+      - switch.turn_off: pin8
+
+  - platform: template
+    name: "Zone 9"
+    id: irrigation_zone9
+    lambda: return id(pin9).state;
+    optimistic: true
+    turn_on_action:
+      # Turn on if not disabled.
+      if:
+        condition:
+          lambda: return id(irrigation_zone9_duration) > 0;
+        then:
+          - switch.turn_on: pin9
+    turn_off_action:
+      - switch.turn_off: pin9
+
+  - platform: template
+    name: "Zone 10"
+    id: irrigation_zone10
+    lambda: return id(pin10).state;
+    optimistic: true
+    turn_on_action:
+      # Turn on if not disabled.
+      if:
+        condition:
+          lambda: return id(irrigation_zone10_duration) > 0;
+        then:
+          - switch.turn_on: pin10
+    turn_off_action:
+      - switch.turn_off: pin10
+
+  - platform: template
+    name: "Zone 11"
+    id: irrigation_zone11
+    lambda: return id(pin11).state;
+    optimistic: true
+    turn_on_action:
+      # Turn on if not disabled.
+      if:
+        condition:
+          lambda: return id(irrigation_zone11_duration) > 0;
+        then:
+          - switch.turn_on: pin11
+    turn_off_action:
+      - switch.turn_off: pin11
+  
+  #######################################################################
+  # Actual switches but without input
+  # These are necessary because it is not possible to prevent a switch from enabling if a condition
+  # (in this case remaining time/liters) is not met
+  #######################################################################
+  - platform: gpio
+    id: "pin0"
+    # No name then it maybe wont show
+    pin:
+      number: "GPIO19"
+      inverted: false
+    on_turn_on:
+      then:
+        # Start the countdown timer.
+        - globals.set:
+            id: remaining_time0
+            value: !lambda return id(irrigation_zone0_duration).state * 60;
+        # Show the remaining time.
+        - sensor.template.publish:
+            id: irrigation_zone0_remaining
+            state: !lambda return id(irrigation_zone0_duration).state;
+        # Show the "Next Time" as "now".
+        - text_sensor.template.publish:
+            id: irrigation_next
+            state: "now"
+    on_turn_off:
+      then:
+        - sensor.template.publish:
+            id: irrigation_zone0_remaining
+            state: "0"
+        # Update the next scheduled run time.
+        - text_sensor.template.publish:
+            id: irrigation_next
+            state: !lambda |-
+              return update_next_runtime(id(irrigation_times).state);
+  
+  - platform: gpio
+    id: "pin1"
+    # No name then it maybe wont show
+    pin:
+      number: "GPIO18"
+      inverted: false
+    on_turn_on:
+      then:
+        # Start the countdown timer.
+        - globals.set:
+            id: remaining_time1
+            value: !lambda return id(irrigation_zone1_duration).state * 60;
+        # Show the remaining time.
+        - sensor.template.publish:
+            id: irrigation_zone1_remaining
+            state: !lambda return id(irrigation_zone1_duration).state;
+        # Show the "Next Time" as "now".
+        - text_sensor.template.publish:
+            id: irrigation_next
+            state: "now"
+    on_turn_off:
+      then:
+        - sensor.template.publish:
+            id: irrigation_zone1_remaining
+            state: "0"
+        # Update the next scheduled run time.
+        - text_sensor.template.publish:
+            id: irrigation_next
+            state: !lambda |-
+              return update_next_runtime(id(irrigation_times).state);
+  
+  - platform: gpio
+    id: "pin2"
+    # No name then it maybe wont show
+    pin:
+      number: "GPIO17"
+      inverted: false
+    on_turn_on:
+      then:
+        # Start the countdown timer.
+        - globals.set:
+            id: remaining_time2
+            value: !lambda return id(irrigation_zone2_duration).state * 60;
+        # Show the remaining time.
+        - sensor.template.publish:
+            id: irrigation_zone2_remaining
+            state: !lambda return id(irrigation_zone2_duration).state;
+        # Show the "Next Time" as "now".
+        - text_sensor.template.publish:
+            id: irrigation_next
+            state: "now"
+    on_turn_off:
+      then:
+        - sensor.template.publish:
+            id: irrigation_zone2_remaining
+            state: "0"
+        # Update the next scheduled run time.
+        - text_sensor.template.publish:
+            id: irrigation_next
+            state: !lambda |-
+              return update_next_runtime(id(irrigation_times).state);
+  
+  - platform: gpio
+    id: "pin3"
+    # No name then it maybe wont show
+    pin:
+      number: "GPIO16"
+      inverted: false
+    on_turn_on:
+      then:
+        # Start the countdown timer.
+        - globals.set:
+            id: remaining_time3
+            value: !lambda return id(irrigation_zone3_duration).state * 60;
+        # Show the remaining time.
+        - sensor.template.publish:
+            id: irrigation_zone3_remaining
+            state: !lambda return id(irrigation_zone3_duration).state;
+        # Show the "Next Time" as "now".
+        - text_sensor.template.publish:
+            id: irrigation_next
+            state: "now"
+    on_turn_off:
+      then:
+        - sensor.template.publish:
+            id: irrigation_zone3_remaining
+            state: "0"
+        # Update the next scheduled run time.
+        - text_sensor.template.publish:
+            id: irrigation_next
+            state: !lambda |-
+              return update_next_runtime(id(irrigation_times).state);
+
+  - platform: gpio
+    id: "pin4"
+    pin:
+      number: "GPIO23"
+      inverted: false
+    on_turn_on:
+      then:
+        # Start the countdown timer.
+        - globals.set:
+            id: remaining_time4
+            value: !lambda return id(irrigation_zone4_duration).state * 60;
+        # Show the remaining time.
+        - sensor.template.publish:
+            id: irrigation_zone4_remaining
+            state: !lambda return id(irrigation_zone4_duration).state;
+        # Show the "Next Time" as "now".
+        - text_sensor.template.publish:
+            id: irrigation_next
+            state: "now"
+    on_turn_off:
+      then:
+        - sensor.template.publish:
+            id: irrigation_zone4_remaining
+            state: "0"
+        # Update the next scheduled run time.
+        - text_sensor.template.publish:
+            id: irrigation_next
+            state: !lambda |-
+              return update_next_runtime(id(irrigation_times).state);
+
+  - platform: gpio
+    id: "pin5"
+    pin:
+      number: "GPIO13"
+      inverted: false
+    on_turn_on:
+      then:
+        # Start the countdown timer.
+        - globals.set:
+            id: remaining_time5
+            value: !lambda return id(irrigation_zone5_duration).state * 60;
+        # Show the remaining time.
+        - sensor.template.publish:
+            id: irrigation_zone5_remaining
+            state: !lambda return id(irrigation_zone5_duration).state;
+        # Show the "Next Time" as "now".
+        - text_sensor.template.publish:
+            id: irrigation_next
+            state: "now"
+    on_turn_off:
+      then:
+        - sensor.template.publish:
+            id: irrigation_zone5_remaining
+            state: "0"
+        # Update the next scheduled run time.
+        - text_sensor.template.publish:
+            id: irrigation_next
+            state: !lambda |-
+              return update_next_runtime(id(irrigation_times).state);
+
+  - platform: gpio
+    id: "pin6"
+    pin:
+      number: "GPIO14"
+      inverted: false
+    on_turn_on:
+      then:
+        # Start the countdown timer.
+        - globals.set:
+            id: remaining_time6
+            value: !lambda return id(irrigation_zone6_duration).state * 60;
+        # Show the remaining time.
+        - sensor.template.publish:
+            id: irrigation_zone6_remaining
+            state: !lambda return id(irrigation_zone6_duration).state;
+        # Show the "Next Time" as "now".
+        - text_sensor.template.publish:
+            id: irrigation_next
+            state: "now"
+    on_turn_off:
+      then:
+        - sensor.template.publish:
+            id: irrigation_zone6_remaining
+            state: "0"
+        # Update the next scheduled run time.
+        - text_sensor.template.publish:
+            id: irrigation_next
+            state: !lambda |-
+              return update_next_runtime(id(irrigation_times).state);
+
+  - platform: gpio
+    id: "pin7"
+    pin:
+      number: "GPIO27"
+      inverted: false
+    on_turn_on:
+      then:
+        # Start the countdown timer.
+        - globals.set:
+            id: remaining_time7
+            value: !lambda return id(irrigation_zone7_duration).state * 60;
+        # Show the remaining time.
+        - sensor.template.publish:
+            id: irrigation_zone7_remaining
+            state: !lambda return id(irrigation_zone7_duration).state;
+        # Show the "Next Time" as "now".
+        - text_sensor.template.publish:
+            id: irrigation_next
+            state: "now"
+    on_turn_off:
+      then:
+        - sensor.template.publish:
+            id: irrigation_zone7_remaining
+            state: "0"
+        # Update the next scheduled run time.
+        - text_sensor.template.publish:
+            id: irrigation_next
+            state: !lambda |-
+              return update_next_runtime(id(irrigation_times).state);
+    
+  - platform: gpio
+    id: "pin8"
+    pin:
+      number: "GPIO26"
+      inverted: false
+    on_turn_on:
+      then:
+        # Start the countdown timer.
+        - globals.set:
+            id: remaining_time8
+            value: !lambda return id(irrigation_zone8_duration).state * 60;
+        # Show the remaining time.
+        - sensor.template.publish:
+            id: irrigation_zone8_remaining
+            state: !lambda return id(irrigation_zone8_duration).state;
+        # Show the "Next Time" as "now".
+        - text_sensor.template.publish:
+            id: irrigation_next
+            state: "now"
+    on_turn_off:
+      then:
+        - sensor.template.publish:
+            id: irrigation_zone8_remaining
+            state: "0"
+        # Update the next scheduled run time.
+        - text_sensor.template.publish:
+            id: irrigation_next
+            state: !lambda |-
+              return update_next_runtime(id(irrigation_times).state);
+
+  - platform: gpio
+    id: "pin9"
+    pin:
+      number: "GPIO25"
+      inverted: false
+    on_turn_on:
+      then:
+        # Start the countdown timer.
+        - globals.set:
+            id: remaining_time9
+            value: !lambda return id(irrigation_zone9_duration).state * 60;
+        # Show the remaining time.
+        - sensor.template.publish:
+            id: irrigation_zone9_remaining
+            state: !lambda return id(irrigation_zone9_duration).state;
+        # Show the "Next Time" as "now".
+        - text_sensor.template.publish:
+            id: irrigation_next
+            state: "now"
+    on_turn_off:
+      then:
+        - sensor.template.publish:
+            id: irrigation_zone9_remaining
+            state: "0"
+        # Update the next scheduled run time.
+        - text_sensor.template.publish:
+            id: irrigation_next
+            state: !lambda |-
+              return update_next_runtime(id(irrigation_times).state);
+
+  - platform: gpio
+    id: "pin10"
+    pin:
+      number: "GPIO33"
+      inverted: false
+    on_turn_on:
+      then:
+        # Start the countdown timer.
+        - globals.set:
+            id: remaining_time10
+            value: !lambda return id(irrigation_zone10_duration).state * 60;
+        # Show the remaining time.
+        - sensor.template.publish:
+            id: irrigation_zone10_remaining
+            state: !lambda return id(irrigation_zone10_duration).state;
+        # Show the "Next Time" as "now".
+        - text_sensor.template.publish:
+            id: irrigation_next
+            state: "now"
+    on_turn_off:
+      then:
+        - sensor.template.publish:
+            id: irrigation_zone10_remaining
+            state: "0"
+        # Update the next scheduled run time.
+        - text_sensor.template.publish:
+            id: irrigation_next
+            state: !lambda |-
+              return update_next_runtime(id(irrigation_times).state);
+
+  - platform: gpio
+    id: "pin11"
+    pin:
+      number: "GPIO32"
+      inverted: false
+    on_turn_on:
+      then:
+        # Start the countdown timer.
+        - globals.set:
+            id: remaining_time11
+            value: !lambda return id(irrigation_zone11_duration).state * 60;
+        # Show the remaining time.
+        - sensor.template.publish:
+            id: irrigation_zone11_remaining
+            state: !lambda return id(irrigation_zone11_duration).state;
+        # Show the "Next Time" as "now".
+        - text_sensor.template.publish:
+            id: irrigation_next
+            state: "now"
+    on_turn_off:
+      then:
+        - sensor.template.publish:
+            id: irrigation_zone11_remaining
+            state: "0"
+        # Update the next scheduled run time.
+        - text_sensor.template.publish:
+            id: irrigation_next
+            state: !lambda |-
+              return update_next_runtime(id(irrigation_times).state);

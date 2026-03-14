@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# ESPHome build artifacts
+.esphome/
+
+# KiCad backups and generated files
+*-backups/
+*.kicad_prl
+*~
+fp-info-cache
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
