@@ -83,7 +83,7 @@ syslog:
   time_id: sync_time
   port: 2514
   facility: 16
-  level: INFO
+  level: DEBUG
   strip: true
 
 ####################################################
