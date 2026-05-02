@@ -1,6 +1,6 @@
 esphome:
-  name: irrigation-micro-2
-  friendly_name: Irrigation_micro_2
+  name: irrigation-reloaded
+  friendly_name: Irrigation_reloaded
   includes:
     - irrigation.h
   on_boot:
@@ -9,6 +9,7 @@ esphome:
       - lambda: |-
           void irrigation_init();
           irrigation_init();
+
 
 esp32:
   board: esp32dev
@@ -22,11 +23,11 @@ logger:
 api:
   id: ha_api
   encryption:
-    key: "9lMZl9GNWKbU0Xq2Zqbz4FnXtPONagObo5sFGl1wbHQ="
+    key: "5BBIjTdJiRUh+pm6veOCKQA4HpIUZr+vD+rSkquZE14="
 
 ota:
   - platform: esphome
-    password: "075ea10192d1ae35844cd0d33e88d2af"
+    password: "0ce18c012cc9dfd451f4a837b5721be9"
 
 wifi:
   ssid: !secret wifi_ssid
@@ -34,7 +35,7 @@ wifi:
   id: wifi_01
   reboot_timeout: 0s
   ap:
-    ssid: "Irrigation-Micro-2"
+    ssid: "Irrigation-reloaded"
     password: "Tbgs0HxpnHJM"
 
 substitutions:
