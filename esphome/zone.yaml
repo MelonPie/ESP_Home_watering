@@ -1,0 +1,76 @@
+number:
+  - platform: template
+    name: Zone ${zone_id} duration
+    id: irrigation_zone${zone_id}_duration
+    icon: mdi:timer-sand
+    optimistic: true
+    initial_value: 0
+    restore_value: true
+    min_value: 0
+    max_value: 60
+    step: 1
+
+  - platform: template
+    name: Zone ${zone_id} liters target
+    id: irrigation_zone${zone_id}_liters_target
+    icon: mdi:water-pump
+    optimistic: true
+    initial_value: 0
+    restore_value: true
+    min_value: 0
+    max_value: 20
+    step: 0.5
+    mode: slider
+
+sensor:
+  - platform: template
+    name: Zone ${zone_id} remaining
+    id: irrigation_zone${zone_id}_remaining
+    lambda: "return 0;"
+    accuracy_decimals: 0
+    unit_of_measurement: minutes
+    icon: mdi:timer-outline
+
+  - platform: template
+    name: Zone ${zone_id} liters remaining
+    id: irrigation_zone${zone_id}_liters_remaining
+    lambda: "return 0;"
+    accuracy_decimals: 3
+    unit_of_measurement: L
+    icon: mdi:watering-can
+
+switch:
+  - platform: template
+    name: "Zone ${zone_id}"
+    id: irrigation_zone${zone_id}
+    lambda: return id(pin${zone_id}).state;
+    optimistic: true
+    turn_on_action:
+      if:
+        condition:
+          lambda: return id(irrigation_zone${zone_id}_liters_target).state > 0 || id(irrigation_zone${zone_id}_duration).state > 0;
+        then:
+          - switch.turn_on: pin${zone_id}
+        else:
+          - lambda: |-
+              void advance_to_next_zone(int);
+              advance_to_next_zone(${zone_id});
+    turn_off_action:
+      - switch.turn_off: pin${zone_id}
+
+  - platform: gpio
+    id: "pin${zone_id}"
+    pin:
+      sn74hc595: sn74hc595_hub
+      number: ${zone_id}
+      inverted: false
+    on_turn_on:
+      then:
+        - lambda: |-
+            void start_zone(int);
+            start_zone(${zone_id});
+    on_turn_off:
+      then:
+        - lambda: |-
+            void stop_zone(int);
+            stop_zone(${zone_id});

@@ -48,7 +48,7 @@ Static arrays (`liters_start[]`, `safety_remaining[]`, etc.) and pointer arrays 
 
 ### Shift register output
 
-20 valve outputs via 3 chained SN74HC595 registers (GPIO19=data, GPIO18=clock, GPIO17=latch). GPIO switches `pin0`–`pin19` map to shift register outputs 0–19.
+20 valve outputs via 3 chained SN74HC595 registers (GPIO14=data, GPIO13=clock, GPIO12=latch). GPIO switches `pin0`–`pin19` map to shift register outputs 0–19.
 
 ### Scheduling
 
@@ -57,8 +57,15 @@ Watering times are stored as comma-separated `HH:MM` strings in a Home Assistant
 ### Hardware (I2C bus on GPIO21/GPIO22)
 
 - **SSD1306 128x64 OLED** (0x3C) — shows WiFi/HA status, active zone progress (liters/target + timeout), or idle state with next scheduled time
-- **PCF8574 I/O expander** (0x20) — available for additional I/O
-- **Pulse counter flow sensor** on GPIO34 — measures L/min (`flow_rate`) and total liters (`flow_total`)
+- **Pulse counter flow sensor** on GPIO34 — FS300A (5V open-collector NPN). The signal is scaled to ESP32 levels by a passive divider: R1 (1.8k) pulls the node to +5V, R2 (3.3k) pulls it to GND, and the FS300A signal output + GPIO34 sit on the same node. When the sensor's transistor is open the node sits at 5V × 3.3/(1.8+3.3) ≈ 3.24V; when it conducts during a pulse, the node is pulled to ~0V. (Earlier revisions used an HW-221 active level shifter; it was a TXS0108E variant that latched up against the open-collector signal — the divider is the correct part for a unidirectional 5V→3.3V pulse input.)
+
+### Power architecture
+
+Two external rails enter the board:
+- **+12V** (J22) — solenoid valves only (ULN2003 COM)
+- **+5V** (J23) — logic rail: SR/ULN VCC, flow sensor supply, divider pull-up, and ESP32 VIN
+
+The ESP32 dev board's onboard regulator generates **+3V3** from VIN; that rail is sourced by the ESP32's 3V3 pin and consumed by the OLED. **Do not feed +12V into ESP32 VIN** — the dev board's regulator dissipates the drop as heat and is not rated for it.
 
 ### Per-zone entities exposed to Home Assistant
 
@@ -75,3 +82,7 @@ WiFi `reboot_timeout: 0s` disables automatic rebooting when Home Assistant is un
 ## Key Substitutions
 
 The YAML uses ESPHome substitutions (`$friendly_name`, `$irrigation_times_entity`, etc.) defined near the top. When adapting for a new device, update the `substitutions:` block and the `esphome: name:` field.
+
+## Ignored Directories
+
+- `old_version/` — Legacy code, no longer relevant. Do not read, reference, or modify.

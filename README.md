@@ -17,11 +17,11 @@ ESP32-based irrigation controller using [ESPHome](https://esphome.io/), integrat
 | Component | Details |
 |---|---|
 | MCU | ESP32-WROOM-32 DevKit |
-| Shift registers | 3x SN74HC595 (GPIO19 data, GPIO18 clock, GPIO17 latch) |
+| Shift registers | 3x SN74HC595 (GPIO14 data, GPIO13 clock, GPIO12 latch) |
 | Valve drivers | 3x ULN2003 Darlington arrays driving 12V solenoids |
-| Flow sensor | Pulse counter on GPIO34 (L/min rate + total liters) |
+| Flow sensor | FS300A (open-collector NPN, 5V supply) on GPIO34, scaled by a 1.8k/3.3k divider (R1/R2) — node sits at 3.24V high / ~0V low |
 | Display | SSD1306 128x64 OLED via I2C (0x3C) on GPIO21/GPIO22 |
-| I/O expander | PCF8574 via I2C (0x20), available for future use |
+| Power | Two external rails: **+12V** (solenoid valves) and **+5V** (logic + ESP32 VIN + flow sensor). +3.3V is generated on the ESP32 dev board's onboard regulator and exported on its 3V3 pin (used by the OLED). |
 
 ## Project Structure
 

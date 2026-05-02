@@ -2,12 +2,12 @@
 """Generate KiCad 9.0 schematic from ESPHome YAML analysis.
 
 Architecture:
-  ESP32 (GPIO19=data, GPIO18=clock, GPIO17=latch)
+  ESP32 (GPIO14=data, GPIO13=clock, GPIO12=latch)
     -> 3x SN74HC595 shift registers (chained, 24 outputs, 20 used)
       -> 3x ULN2003 Darlington driver arrays (21 channels, 20 used)
         -> 20 solenoid valve connectors (+12V switched to GND)
-  GPIO34: pulse-counter flow sensor
-  GPIO21/22: I2C bus (SSD1306 OLED @ 0x3C, PCF8574 @ 0x20)
+  GPIO34: pulse-counter flow sensor (5V open-collector) via 1.8k/3.3k divider
+  GPIO21/22: I2C bus (SSD1306 OLED @ 0x3C)
 """
 import uuid
 
@@ -15,9 +15,9 @@ def uid():
     return str(uuid.uuid4())
 
 # === Pin mapping from YAML ===
-SHIFT_REG_DATA  = "GPIO19"
-SHIFT_REG_CLOCK = "GPIO18"
-SHIFT_REG_LATCH = "GPIO17"
+SHIFT_REG_DATA  = "GPIO14"
+SHIFT_REG_CLOCK = "GPIO13"
+SHIFT_REG_LATCH = "GPIO12"
 NUM_ZONES = 20
 NUM_SR = 3       # 3x SN74HC595
 NUM_ULN = 3      # 3x ULN2003 (7 channels each = 21, using 20)
@@ -41,7 +41,7 @@ ESP32_PINS_LEFT = [
     ("11", "GPIO27",    "bidirectional"),
     ("12", "GPIO14",    "bidirectional"),
     ("13", "GPIO13",    "bidirectional"),
-    ("14", "GND2",      "power_in"),
+    ("14", "GPIO12",    "bidirectional"),
     ("15", "VIN",       "power_in"),
 ]
 
@@ -291,6 +291,19 @@ def next_pwr(lib_id, value, x, y, angle=0, description=""):
     ref = f"#PWR{pwr_idx:02d}"
     pwr_idx += 1
     return place_power(lib_id, ref, value, x, y, angle, description)
+
+
+def power_inline(power_lib, label, pin_x, pin_y, side, stub=5.08):
+    """Connect a pin to a power symbol with a single inline horizontal wire.
+
+    No L-bend, so the symbol's anchor never lands on an adjacent pin's label/wire
+    coordinate (which would otherwise create a phantom net short).
+    `side` is "left" or "right" — direction the wire extends from the pin.
+    """
+    dx = -stub if side == "left" else stub
+    sym_x = pin_x + dx
+    instances.append(next_pwr(power_lib, label, sym_x, pin_y))
+    wires.append(make_wire(pin_x, pin_y, sym_x, pin_y))
 
 
 # ============================================================
@@ -600,40 +613,27 @@ lib_symbols.append(f"""\t\t(symbol "irrigation:SSD1306_OLED"
 \t\t\t(embedded_fonts no)
 \t\t)""")
 
-# --- PCF8574 I/O Expander ---
-pcf_pin_defs = [
-    ("1", "A0", "input"), ("2", "A1", "input"), ("3", "A2", "input"),
-    ("4", "P0", "bidirectional"), ("5", "P1", "bidirectional"),
-    ("6", "P2", "bidirectional"), ("7", "P3", "bidirectional"),
-    ("8", "GND", "power_in"),
-    ("9", "P4", "bidirectional"), ("10", "P5", "bidirectional"),
-    ("11", "P6", "bidirectional"), ("12", "P7", "bidirectional"),
-    ("13", "INT", "open_collector"),
-    ("14", "SCL", "input"), ("15", "SDA", "bidirectional"),
-    ("16", "VCC", "power_in"),
+# --- Resistor (vertical, 2 pins, ~7.62mm tall) ---
+# Used for the FS300A flow-sensor passive level translation:
+#   +5V --[R1 1.8k]--+--[R2 3.3k]-- GND
+#                    |
+#         FS300A signal + GPIO34 (node sits at 3.24V when sensor is idle high)
+res_pins = [
+    make_pin("1", "~", "passive", 0,  3.81, 270, length=2.54),
+    make_pin("2", "~", "passive", 0, -3.81,  90, length=2.54),
 ]
-pcf_pins = []
-for i in range(8):
-    y = 10.16 - i * 2.54
-    num, name, ptype = pcf_pin_defs[i]
-    pcf_pins.append(make_pin(num, name, ptype, -(10.16 + 5.08), y, 0, 5.08))
-for i in range(8):
-    y = 10.16 - i * 2.54
-    num, name, ptype = pcf_pin_defs[i + 8]
-    pcf_pins.append(make_pin(num, name, ptype, (10.16 + 5.08), y, 180, 5.08))
-
-lib_symbols.append(f"""\t\t(symbol "irrigation:PCF8574"
-\t\t\t(pin_names (offset 1.016))
+lib_symbols.append(f"""\t\t(symbol "irrigation:R"
+\t\t\t(pin_names (offset 0) (hide yes))
 \t\t\t(exclude_from_sim no)
 \t\t\t(in_bom yes)
 \t\t\t(on_board yes)
-\t\t\t(property "Reference" "U"
-\t\t\t\t(at 0 15.24 0)
-\t\t\t\t(effects (font (size 1.27 1.27)))
+\t\t\t(property "Reference" "R"
+\t\t\t\t(at 2.286 0 0)
+\t\t\t\t(effects (font (size 1.27 1.27)) (justify left))
 \t\t\t)
-\t\t\t(property "Value" "PCF8574"
-\t\t\t\t(at 0 -12.7 0)
-\t\t\t\t(effects (font (size 1.27 1.27)))
+\t\t\t(property "Value" "R"
+\t\t\t\t(at -2.286 0 0)
+\t\t\t\t(effects (font (size 1.27 1.27)) (justify right))
 \t\t\t)
 \t\t\t(property "Footprint" ""
 \t\t\t\t(at 0 0 0)
@@ -643,20 +643,20 @@ lib_symbols.append(f"""\t\t(symbol "irrigation:PCF8574"
 \t\t\t\t(at 0 0 0)
 \t\t\t\t(effects (font (size 1.27 1.27)) (hide yes))
 \t\t\t)
-\t\t\t(property "Description" "PCF8574 8-bit I/O Expander (I2C addr 0x20)"
+\t\t\t(property "Description" "Resistor"
 \t\t\t\t(at 0 0 0)
 \t\t\t\t(effects (font (size 1.27 1.27)) (hide yes))
 \t\t\t)
-\t\t\t(symbol "PCF8574_0_1"
+\t\t\t(symbol "R_0_1"
 \t\t\t\t(rectangle
-\t\t\t\t\t(start -10.16 12.7)
-\t\t\t\t\t(end 10.16 -10.16)
+\t\t\t\t\t(start -0.889 1.778)
+\t\t\t\t\t(end 0.889 -1.778)
 \t\t\t\t\t(stroke (width 0.254) (type default))
-\t\t\t\t\t(fill (type background))
+\t\t\t\t\t(fill (type none))
 \t\t\t\t)
 \t\t\t)
-\t\t\t(symbol "PCF8574_1_1"
-{chr(10).join(pcf_pins)}
+\t\t\t(symbol "R_1_1"
+{chr(10).join(res_pins)}
 \t\t\t)
 \t\t\t(embedded_fonts no)
 \t\t)""")
@@ -759,6 +759,7 @@ instances = []
 labels = []
 wires = []
 texts = []
+junctions = []
 
 # Title
 texts.append(make_text("ESP32 Irrigation Controller", 200, 20, 3.0))
@@ -795,30 +796,28 @@ esp_pin_uuids = [(str(i+1), uid()) for i in range(30)]
 instances.append(place_symbol("irrigation:ESP32-DevKit", "U1", "ESP32-DevKit",
     esp_x, esp_y, pin_uuids=esp_pin_uuids, description="ESP32 DevKit Module"))
 
-# ESP32 power connections
-# 3V3 = left pin 1
-px, py = esp_left_pin_pos(1)
-instances.append(next_pwr("power:+3V3", "+3V3", px - 2.54, py - 2.54))
-wires.append(make_wire(px, py, px - 2.54, py))
-wires.append(make_wire(px - 2.54, py, px - 2.54, py - 2.54))
-
-# GND = left pin 0
+# ESP32 power connections (inline; longer stubs on adjacent pins to spread symbols)
+# Power architecture: external +12V (solenoids only) and +5V (logic + ESP32 VIN)
+# enter on dedicated connectors. The ESP32's onboard regulator generates +3V3,
+# which is exported on the 3V3 pin and consumed by the OLED.
+# GND = left pin 0 (top of cluster) — long stub
 px, py = esp_left_pin_pos(0)
-instances.append(next_pwr("power:GND", "GND", px - 2.54, py + 2.54))
-wires.append(make_wire(px, py, px - 2.54, py))
-wires.append(make_wire(px - 2.54, py, px - 2.54, py + 2.54))
+power_inline("power:GND", "GND", px, py, "left", stub=7.62)
 
-# VIN = left pin 14
+# 3V3 = left pin 1 — sourced FROM the ESP32's onboard regulator out to the rest
+# of the board (OLED). Short stub, staggered in X.
+px, py = esp_left_pin_pos(1)
+power_inline("power:+3V3", "+3V3", px, py, "left", stub=2.54)
+
+# VIN = left pin 14 — fed from the +5V rail (NOT +12V; ESP32 dev board onboard
+# regulator drops 5V -> 3.3V). The ESP32 can also be powered via USB; both
+# sources coexist on the +5V net.
 px, py = esp_left_pin_pos(14)
-instances.append(next_pwr("power:+12V", "+12V", px - 2.54, py - 2.54))
-wires.append(make_wire(px, py, px - 2.54, py))
-wires.append(make_wire(px - 2.54, py, px - 2.54, py - 2.54))
+power_inline("power:+5V", "+5V", px, py, "left")
 
 # GND = right pin 0
 px, py = esp_right_pin_pos(0)
-instances.append(next_pwr("power:GND", "GND", px + 2.54, py + 2.54))
-wires.append(make_wire(px, py, px + 2.54, py))
-wires.append(make_wire(px + 2.54, py, px + 2.54, py + 2.54))
+power_inline("power:GND", "GND", px, py, "right")
 
 # Shift register control labels on ESP32
 for gpio_name, label_text in [
@@ -967,26 +966,18 @@ for g in range(3):
 
     # SR power: VCC = right index 0, GND = left index 7
     px, py = sr_right_pin_pos(sr_cx, sr_cy, 0)  # VCC
-    instances.append(next_pwr("power:+5V", "+5V", px + 2.54, py - 2.54))
-    wires.append(make_wire(px, py, px + 2.54, py))
-    wires.append(make_wire(px + 2.54, py, px + 2.54, py - 2.54))
+    power_inline("power:+5V", "+5V", px, py, "right")
 
     px, py = sr_left_pin_pos(sr_cx, sr_cy, 7)  # GND
-    instances.append(next_pwr("power:GND", "GND", px - 2.54, py + 2.54))
-    wires.append(make_wire(px, py, px - 2.54, py))
-    wires.append(make_wire(px - 2.54, py, px - 2.54, py + 2.54))
+    power_inline("power:GND", "GND", px, py, "left")
 
     # ~OE tied to GND (always enabled) = right index 3
     px, py = sr_right_pin_pos(sr_cx, sr_cy, 3)  # ~OE
-    instances.append(next_pwr("power:GND", "GND", px + 2.54, py + 2.54))
-    wires.append(make_wire(px, py, px + 2.54, py))
-    wires.append(make_wire(px + 2.54, py, px + 2.54, py + 2.54))
+    power_inline("power:GND", "GND", px, py, "right")
 
     # ~SRCLR tied to VCC (never clear) = right index 6
     px, py = sr_right_pin_pos(sr_cx, sr_cy, 6)  # ~SRCLR
-    instances.append(next_pwr("power:+5V", "+5V", px + 2.54, py - 2.54))
-    wires.append(make_wire(px, py, px + 2.54, py))
-    wires.append(make_wire(px + 2.54, py, px + 2.54, py - 2.54))
+    power_inline("power:+5V", "+5V", px, py, "right")
 
     # SRCLK = right index 5 -> SR_CLK
     px, py = sr_right_pin_pos(sr_cx, sr_cy, 5)
@@ -1028,15 +1019,11 @@ for g in range(3):
 
     # ULN GND = left index 7
     px, py = uln_left_pin_pos(uln_cx, uln_cy, 7)
-    instances.append(next_pwr("power:GND", "GND", px - 2.54, py + 2.54))
-    wires.append(make_wire(px, py, px - 2.54, py))
-    wires.append(make_wire(px - 2.54, py, px - 2.54, py + 2.54))
+    power_inline("power:GND", "GND", px, py, "left")
 
     # ULN COM = right index 7 -> +12V (freewheeling diode common for solenoids)
     px, py = uln_right_pin_pos(uln_cx, uln_cy, 7)
-    instances.append(next_pwr("power:+12V", "+12V", px + 2.54, py - 2.54))
-    wires.append(make_wire(px, py, px + 2.54, py))
-    wires.append(make_wire(px + 2.54, py, px + 2.54, py - 2.54))
+    power_inline("power:+12V", "+12V", px, py, "right")
 
 # Now wire SR outputs -> ULN inputs, and ULN outputs -> valve connectors
 # Zone N: SR = N//8, bit = N%8; ULN = N//7, channel = N%7
@@ -1095,10 +1082,9 @@ for zone in range(NUM_ZONES):
     p1x, p1y = jx - 7.62, jy - 1.27  # Pin 1 = +12V (solenoid power)
     p2x, p2y = jx - 7.62, jy + 1.27  # Pin 2 = switched GND from ULN
 
-    # Pin 1 -> +12V
-    instances.append(next_pwr("power:+12V", "+12V", p1x - 2.54, p1y - 2.54))
-    wires.append(make_wire(p1x, p1y, p1x - 2.54, p1y))
-    wires.append(make_wire(p1x - 2.54, p1y, p1x - 2.54, p1y - 2.54))
+    # Pin 1 -> +12V (inline; wire ends 2.54 to the left of pin tip, longer stub
+    # so the +12V symbol sits clear of the valve_net label below)
+    power_inline("power:+12V", "+12V", p1x, p1y, "left", stub=5.08)
 
     # Pin 2 -> valve net (from ULN output, sinks to GND when active)
     labels.append(make_global_label(valve_net, p2x - 2.54, p2y, 180))
@@ -1121,13 +1107,9 @@ oled_vcc_x, oled_vcc_y = oled_x - 7.62, oled_y - 2.54
 oled_scl_x, oled_scl_y = oled_x - 7.62, oled_y
 oled_sda_x, oled_sda_y = oled_x - 7.62, oled_y + 2.54
 
-instances.append(next_pwr("power:GND", "GND", oled_gnd_x - 2.54, oled_gnd_y + 2.54))
-wires.append(make_wire(oled_gnd_x, oled_gnd_y, oled_gnd_x - 2.54, oled_gnd_y))
-wires.append(make_wire(oled_gnd_x - 2.54, oled_gnd_y, oled_gnd_x - 2.54, oled_gnd_y + 2.54))
-
-instances.append(next_pwr("power:+3V3", "+3V3", oled_vcc_x - 2.54, oled_vcc_y - 2.54))
-wires.append(make_wire(oled_vcc_x, oled_vcc_y, oled_vcc_x - 2.54, oled_vcc_y))
-wires.append(make_wire(oled_vcc_x - 2.54, oled_vcc_y, oled_vcc_x - 2.54, oled_vcc_y - 2.54))
+# GND on top pin, +3V3 just below — stagger horizontally to avoid symbol overlap
+power_inline("power:GND",  "GND",   oled_gnd_x, oled_gnd_y, "left", stub=7.62)
+power_inline("power:+3V3", "+3V3",  oled_vcc_x, oled_vcc_y, "left", stub=2.54)
 
 labels.append(make_global_label("SCL", oled_scl_x - 2.54, oled_scl_y, 180))
 wires.append(make_wire(oled_scl_x, oled_scl_y, oled_scl_x - 2.54, oled_scl_y))
@@ -1137,115 +1119,111 @@ wires.append(make_wire(oled_sda_x, oled_sda_y, oled_sda_x - 2.54, oled_sda_y))
 
 
 # ============================================================
-# Place PCF8574 I/O Expander
-# ============================================================
-pcf_x, pcf_y = 50.0, 130.0
-texts.append(make_text("PCF8574 I/O Expander (I2C 0x20)", pcf_x, pcf_y - 22, 1.5))
-
-pcf_pin_uuids_inst = [(str(i+1), uid()) for i in range(16)]
-instances.append(place_symbol("irrigation:PCF8574", "U9", "PCF8574",
-    pcf_x, pcf_y, pin_uuids=pcf_pin_uuids_inst,
-    description="PCF8574 8-bit I/O Expander (I2C addr 0x20)"))
-
-def pcf_left_pin_pos(i):
-    return (pcf_x - 15.24, pcf_y - (10.16 - i * 2.54))
-
-def pcf_right_pin_pos(i):
-    return (pcf_x + 15.24, pcf_y - (10.16 - i * 2.54))
-
-# A0, A1, A2 tied to GND
-for i in range(3):
-    px, py = pcf_left_pin_pos(i)
-    instances.append(next_pwr("power:GND", "GND", px - 2.54, py + 2.54))
-    wires.append(make_wire(px, py, px - 2.54, py))
-    wires.append(make_wire(px - 2.54, py, px - 2.54, py + 2.54))
-
-# GND (pin 8 = left index 7)
-px, py = pcf_left_pin_pos(7)
-instances.append(next_pwr("power:GND", "GND", px - 2.54, py + 2.54))
-wires.append(make_wire(px, py, px - 2.54, py))
-wires.append(make_wire(px - 2.54, py, px - 2.54, py + 2.54))
-
-# VCC (pin 16 = right index 7)
-px, py = pcf_right_pin_pos(7)
-instances.append(next_pwr("power:+3V3", "+3V3", px + 2.54, py - 2.54))
-wires.append(make_wire(px, py, px + 2.54, py))
-wires.append(make_wire(px + 2.54, py, px + 2.54, py - 2.54))
-
-# SCL (pin 14 = right index 5)
-px, py = pcf_right_pin_pos(5)
-labels.append(make_global_label("SCL", px + 2.54, py, 0))
-wires.append(make_wire(px, py, px + 2.54, py))
-
-# SDA (pin 15 = right index 6)
-px, py = pcf_right_pin_pos(6)
-labels.append(make_global_label("SDA", px + 2.54, py, 0))
-wires.append(make_wire(px, py, px + 2.54, py))
-
-# P0-P7 labels
-for i in range(4):
-    px, py = pcf_left_pin_pos(3 + i)
-    labels.append(make_global_label(f"PCF_P{i}", px - 2.54, py, 180))
-    wires.append(make_wire(px, py, px - 2.54, py))
-for i in range(4):
-    px, py = pcf_right_pin_pos(i)
-    labels.append(make_global_label(f"PCF_P{4+i}", px + 2.54, py, 0))
-    wires.append(make_wire(px, py, px + 2.54, py))
-
-# INT (pin 13 = right index 4)
-px, py = pcf_right_pin_pos(4)
-labels.append(make_global_label("PCF_INT", px + 2.54, py, 0))
-wires.append(make_wire(px, py, px + 2.54, py))
-
-
-# ============================================================
-# Place Flow Sensor connector
+# Place Flow Sensor connector + passive level translation
+# ----------------------------------------------------------------
+# FS300A is open-collector NPN; signal output is pulled high by R1 (1.8k to
+# +5V) and divided down by R2 (3.3k to GND), giving 3.24V high / ~0V low at
+# the shared node — directly readable by ESP32 GPIO34 (VIH ≈ 2.5V).
+# Idle current 5V/(1.8k+3.3k) ≈ 1mA; sink current when pulse-low 5V/1.8k ≈ 2.8mA.
 # ============================================================
 flow_x, flow_y = 50.0, 180.0
-texts.append(make_text("Flow Sensor (Pulse Counter on GPIO34)", flow_x, flow_y - 12, 1.5))
+texts.append(make_text("Flow Sensor (5V open-collector)", flow_x, flow_y - 12, 1.5))
 
 flow_pin_uuids = [("1", uid()), ("2", uid()), ("3", uid())]
 instances.append(place_symbol("irrigation:Conn_01x03", "J21", "Flow_Sensor",
     flow_x, flow_y, pin_uuids=flow_pin_uuids,
-    description="Flow sensor connector (pulse counter)"))
+    description="FS300A flow sensor (red=+5V, yellow=signal, black=GND)"))
 
 fp1x, fp1y = flow_x - 7.62, flow_y - 2.54
 fp2x, fp2y = flow_x - 7.62, flow_y
 fp3x, fp3y = flow_x - 7.62, flow_y + 2.54
 
-instances.append(next_pwr("power:+3V3", "+3V3", fp1x - 2.54, fp1y - 2.54))
-wires.append(make_wire(fp1x, fp1y, fp1x - 2.54, fp1y))
-wires.append(make_wire(fp1x - 2.54, fp1y, fp1x - 2.54, fp1y - 2.54))
+power_inline("power:+5V", "+5V", fp1x, fp1y, "left")
+power_inline("power:GND", "GND", fp3x, fp3y, "left")
 
-labels.append(make_global_label("FLOW_PULSE", fp2x - 2.54, fp2y, 180))
-wires.append(make_wire(fp2x, fp2y, fp2x - 2.54, fp2y))
+# Divider node sits at (div_node_x, flow_y); sensor signal wires across to it.
+div_node_x = 70.0
+div_node_y = flow_y
+wires.append(make_wire(fp2x, fp2y, div_node_x, div_node_y))
 
-instances.append(next_pwr("power:GND", "GND", fp3x - 2.54, fp3y + 2.54))
-wires.append(make_wire(fp3x, fp3y, fp3x - 2.54, fp3y))
-wires.append(make_wire(fp3x - 2.54, fp3y, fp3x - 2.54, fp3y + 2.54))
+# R1 (1.8k pull-up) — placed above the node so its top pin sits at +5V.
+# Pin 1 (symbol y=+3.81) is above; pin 2 (symbol y=-3.81) is the node side.
+r1_origin = (div_node_x, div_node_y - 3.81)
+r1_top    = (div_node_x, div_node_y - 7.62)   # pin 1 = +5V end
+r1_bot    = (div_node_x, div_node_y)          # pin 2 = divider node
+r1_uuids  = [("1", uid()), ("2", uid())]
+instances.append(place_symbol("irrigation:R", "R1", "1.8k",
+    *r1_origin, pin_uuids=r1_uuids,
+    description="Flow-sensor pull-up to +5V (high side of divider)"))
+
+# R2 (3.3k pull-down) — placed below the node so its bottom pin sits at GND.
+r2_origin = (div_node_x, div_node_y + 3.81)
+r2_top    = (div_node_x, div_node_y)          # pin 1 = divider node
+r2_bot    = (div_node_x, div_node_y + 7.62)   # pin 2 = GND end
+r2_uuids  = [("1", uid()), ("2", uid())]
+instances.append(place_symbol("irrigation:R", "R2", "3.3k",
+    *r2_origin, pin_uuids=r2_uuids,
+    description="Flow-sensor pull-down to GND (low side of divider)"))
+
+# Power-rail caps on the divider:
+# Top of R1 -> +5V (place power symbol slightly above the resistor pin)
+instances.append(next_pwr("power:+5V", "+5V", div_node_x, r1_top[1] - 2.54))
+wires.append(make_wire(div_node_x, r1_top[1], div_node_x, r1_top[1] - 2.54))
+# Bottom of R2 -> GND (place power symbol slightly below)
+instances.append(next_pwr("power:GND", "GND", div_node_x, r2_bot[1] + 2.54))
+wires.append(make_wire(div_node_x, r2_bot[1], div_node_x, r2_bot[1] + 2.54))
+
+# FLOW_PULSE label on the divider node (same global label the ESP32 GPIO34
+# pin uses, so they're on the same net).
+labels.append(make_global_label("FLOW_PULSE", div_node_x + 5.08, div_node_y, 0))
+wires.append(make_wire(div_node_x, div_node_y, div_node_x + 5.08, div_node_y))
+
+# Explicit junction at the divider node — four things meet here (R1 pin 2,
+# R2 pin 1, the wire from the sensor, the wire to the FLOW_PULSE label).
+junctions.append(f"""\t(junction
+\t\t(at {div_node_x} {div_node_y})
+\t\t(diameter 0)
+\t\t(color 0 0 0 0)
+\t\t(uuid "{uid()}")
+\t)""")
 
 
 # ============================================================
-# Place Power Input connector
+# Place Power Input connectors
+# ----------------------------------------------------------------
+# Two external rails enter the board:
+#   J22: +12V (solenoid valve power, ULN2003 COM)
+#   J23: +5V  (SR/ULN VCC, flow sensor, divider pull-up, ESP32 VIN)
+# ESP32's onboard regulator generates +3V3 from VIN; that net is sourced by
+# the ESP32's 3V3 pin and consumed by the OLED.
 # ============================================================
-pwr_x, pwr_y = 50.0, 210.0
-texts.append(make_text("Power Input (12V DC)", pwr_x, pwr_y - 12, 1.5))
+# --- +12V input (J22) ---
+pwr12_x, pwr12_y = 50.0, 210.0
+texts.append(make_text("+12V Input (solenoid power)", pwr12_x, pwr12_y - 12, 1.5))
 
-pwr_pin_uuids = [("1", uid()), ("2", uid())]
-instances.append(place_symbol("irrigation:Conn_01x02", "J22", "Power_In",
-    pwr_x, pwr_y, pin_uuids=pwr_pin_uuids,
-    description="Power input connector 12V"))
+pwr12_pin_uuids = [("1", uid()), ("2", uid())]
+instances.append(place_symbol("irrigation:Conn_01x02", "J22", "+12V_In",
+    pwr12_x, pwr12_y, pin_uuids=pwr12_pin_uuids,
+    description="External +12V power input (solenoid valves)"))
 
-pp1x, pp1y = pwr_x - 7.62, pwr_y - 1.27
-pp2x, pp2y = pwr_x - 7.62, pwr_y + 1.27
+p12_1x, p12_1y = pwr12_x - 7.62, pwr12_y - 1.27
+p12_2x, p12_2y = pwr12_x - 7.62, pwr12_y + 1.27
+power_inline("power:+12V", "+12V", p12_1x, p12_1y, "left", stub=7.62)
+power_inline("power:GND",  "GND",  p12_2x, p12_2y, "left", stub=2.54)
 
-instances.append(next_pwr("power:+12V", "+12V", pp1x - 2.54, pp1y - 2.54))
-wires.append(make_wire(pp1x, pp1y, pp1x - 2.54, pp1y))
-wires.append(make_wire(pp1x - 2.54, pp1y, pp1x - 2.54, pp1y - 2.54))
+# --- +5V input (J23) ---
+pwr5_x, pwr5_y = 50.0, 235.0
+texts.append(make_text("+5V Input (logic + ESP32 VIN)", pwr5_x, pwr5_y - 12, 1.5))
 
-instances.append(next_pwr("power:GND", "GND", pp2x - 2.54, pp2y + 2.54))
-wires.append(make_wire(pp2x, pp2y, pp2x - 2.54, pp2y))
-wires.append(make_wire(pp2x - 2.54, pp2y, pp2x - 2.54, pp2y + 2.54))
+pwr5_pin_uuids = [("1", uid()), ("2", uid())]
+instances.append(place_symbol("irrigation:Conn_01x02", "J23", "+5V_In",
+    pwr5_x, pwr5_y, pin_uuids=pwr5_pin_uuids,
+    description="External +5V power input (logic rail, feeds ESP32 VIN)"))
+
+p5_1x, p5_1y = pwr5_x - 7.62, pwr5_y - 1.27
+p5_2x, p5_2y = pwr5_x - 7.62, pwr5_y + 1.27
+power_inline("power:+5V", "+5V", p5_1x, p5_1y, "left", stub=7.62)
+power_inline("power:GND", "GND", p5_2x, p5_2y, "left", stub=2.54)
 
 
 # ============================================================
@@ -1264,6 +1242,7 @@ output = f"""(kicad_sch
 {chr(10).join(instances)}
 {chr(10).join(labels)}
 {chr(10).join(wires)}
+{chr(10).join(junctions)}
 \t(sheet_instances
 \t\t(path "/"
 \t\t\t(page "1")
@@ -1282,8 +1261,9 @@ print(f"  - 3x SN74HC595 shift registers (U2-U4) — chained, 24 outputs")
 print(f"  - 3x ULN2003 Darlington drivers (U5-U7) — 20 channels used")
 print(f"  - 20 solenoid valve connectors (J1-J20)")
 print(f"  - SSD1306 OLED display (U8, I2C 0x3C)")
-print(f"  - PCF8574 I/O expander (U9, I2C 0x20)")
-print(f"  - Flow sensor connector (J21)")
-print(f"  - Power input connector (J22)")
+print(f"  - Flow sensor connector (J21) + 1.8k/3.3k passive divider (R1, R2) -> GPIO34")
+print(f"  - +12V input connector (J22) — solenoid power")
+print(f"  - +5V input connector (J23)  — logic rail, feeds ESP32 VIN")
+print(f"  - +3V3 generated on the ESP32 dev board (regulator out on the 3V3 pin)")
 print(f"  - {len(wires)} wires, {len(labels)} labels, {pwr_idx - 1} power symbols")
 print(f"  - Paper size: A2 (for 20-zone layout)")
