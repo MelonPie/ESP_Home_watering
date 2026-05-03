@@ -55,11 +55,21 @@ substitutions:
 captive_portal:
 
 # Shift register chain: 3x SN74HC595 = 24 outputs, using 20
+# Pins moved off GPIO12/13/14: GPIO12 is a strapping pin (flash voltage select)
+# and GPIO14/15 emit bootloader debug pulses, which clocked random data into the
+# SRs and turned valves on at reset. /OE is held high by an external 10k pull-up
+# to +5V while GPIO16 is high-Z (boot), keeping all SR outputs disabled until
+# ESPHome has shifted in zeros and explicitly drives /OE low.
 sn74hc595:
   - id: 'sn74hc595_hub'
-    data_pin: GPIO14
-    clock_pin: GPIO13
-    latch_pin: GPIO12
+    data_pin: GPIO23
+    clock_pin: GPIO18
+    latch_pin: GPIO5
+    oe_pin:
+      number: GPIO16
+      mode:
+        output: true
+        open_drain: true
     sr_count: 3
 
 # Time
