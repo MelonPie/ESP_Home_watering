@@ -2,12 +2,15 @@
 """Generate KiCad 9.0 schematic from ESPHome YAML analysis.
 
 Architecture:
-  ESP32 (GPIO14=data, GPIO13=clock, GPIO12=latch)
+  ESP32 (GPIO23=data, GPIO18=clock, GPIO5=latch, GPIO16=/OE)
     -> 3x SN74HC595 shift registers (chained, 24 outputs, 20 used)
       -> 3x ULN2003 Darlington driver arrays (21 channels, 20 used)
         -> 20 solenoid valve connectors (+12V switched to GND)
   GPIO34: pulse-counter flow sensor (5V open-collector) via 1.8k/3.3k divider
   GPIO21/22: I2C bus (SSD1306 OLED @ 0x3C)
+  /OE on all SRs is held high by an external 10k pull-up to +5V (R3) until
+  GPIO16 (open-drain) drives it low after firmware has shifted in zeros —
+  prevents valves energizing on garbage SR contents at boot.
 """
 import uuid
 
@@ -15,9 +18,10 @@ def uid():
     return str(uuid.uuid4())
 
 # === Pin mapping from YAML ===
-SHIFT_REG_DATA  = "GPIO14"
-SHIFT_REG_CLOCK = "GPIO13"
-SHIFT_REG_LATCH = "GPIO12"
+SHIFT_REG_DATA  = "GPIO23"
+SHIFT_REG_CLOCK = "GPIO18"
+SHIFT_REG_LATCH = "GPIO5"
+SHIFT_REG_OE    = "GPIO16"
 NUM_ZONES = 20
 NUM_SR = 3       # 3x SN74HC595
 NUM_ULN = 3      # 3x ULN2003 (7 channels each = 21, using 20)
@@ -821,7 +825,8 @@ power_inline("power:GND", "GND", px, py, "right")
 
 # Shift register control labels on ESP32
 for gpio_name, label_text in [
-    (SHIFT_REG_DATA, "SR_DATA"), (SHIFT_REG_CLOCK, "SR_CLK"), (SHIFT_REG_LATCH, "SR_LATCH")
+    (SHIFT_REG_DATA, "SR_DATA"), (SHIFT_REG_CLOCK, "SR_CLK"),
+    (SHIFT_REG_LATCH, "SR_LATCH"), (SHIFT_REG_OE, "SR_OE"),
 ]:
     side, idx = gpio_to_esp[gpio_name]
     if side == "right":
@@ -855,6 +860,26 @@ else:
     px, py = esp_right_pin_pos(idx)
     labels.append(make_global_label("FLOW_PULSE", px + 2.54, py, 0))
     wires.append(make_wire(px, py, px + 2.54, py))
+
+# R3: 10k pull-up from SR_OE to +5V. ESP32 GPIO16 drives /OE open-drain;
+# this resistor keeps /OE high (outputs disabled) while GPIO16 is in reset
+# / high-Z, so the SRs stay quiet through the bootloader debug pulses.
+r3_x, r3_y = 135.0, 90.0
+r3_origin = (r3_x, r3_y)
+r3_top    = (r3_x, r3_y - 3.81)   # pin 1 = +5V end
+r3_bot    = (r3_x, r3_y + 3.81)   # pin 2 = SR_OE end
+r3_uuids  = [("1", uid()), ("2", uid())]
+instances.append(place_symbol("irrigation:R", "R3", "10k",
+    *r3_origin, pin_uuids=r3_uuids,
+    description="SR /OE pull-up to +5V (keeps outputs disabled at boot)"))
+
+# Top of R3 -> +5V power symbol just above
+instances.append(next_pwr("power:+5V", "+5V", r3_x, r3_top[1] - 2.54))
+wires.append(make_wire(r3_x, r3_top[1], r3_x, r3_top[1] - 2.54))
+
+# Bottom of R3 -> SR_OE label
+labels.append(make_global_label("SR_OE", r3_bot[0] + 5.08, r3_bot[1], 0))
+wires.append(make_wire(r3_bot[0], r3_bot[1], r3_bot[0] + 5.08, r3_bot[1]))
 
 
 # ============================================================
@@ -971,9 +996,11 @@ for g in range(3):
     px, py = sr_left_pin_pos(sr_cx, sr_cy, 7)  # GND
     power_inline("power:GND", "GND", px, py, "left")
 
-    # ~OE tied to GND (always enabled) = right index 3
+    # ~OE driven by ESP32 GPIO16 via the SR_OE net (open-drain, pulled up to
+    # +5V by R3 so outputs stay disabled while ESP32 is in reset / high-Z).
     px, py = sr_right_pin_pos(sr_cx, sr_cy, 3)  # ~OE
-    power_inline("power:GND", "GND", px, py, "right")
+    labels.append(make_global_label("SR_OE", px + 2.54, py, 0))
+    wires.append(make_wire(px, py, px + 2.54, py))
 
     # ~SRCLR tied to VCC (never clear) = right index 6
     px, py = sr_right_pin_pos(sr_cx, sr_cy, 6)  # ~SRCLR
@@ -1256,12 +1283,13 @@ with open("esp_watering.kicad_sch", "w") as f:
     f.write(output)
 
 print("Generated schematic with:")
-print(f"  - ESP32 DevKit (U1) — 3 GPIOs for shift register control")
+print(f"  - ESP32 DevKit (U1) — 4 GPIOs for shift register control (data/clk/latch/OE)")
 print(f"  - 3x SN74HC595 shift registers (U2-U4) — chained, 24 outputs")
 print(f"  - 3x ULN2003 Darlington drivers (U5-U7) — 20 channels used")
 print(f"  - 20 solenoid valve connectors (J1-J20)")
 print(f"  - SSD1306 OLED display (U8, I2C 0x3C)")
 print(f"  - Flow sensor connector (J21) + 1.8k/3.3k passive divider (R1, R2) -> GPIO34")
+print(f"  - SR /OE 10k pull-up to +5V (R3) -> GPIO16 open-drain")
 print(f"  - +12V input connector (J22) — solenoid power")
 print(f"  - +5V input connector (J23)  — logic rail, feeds ESP32 VIN")
 print(f"  - +3V3 generated on the ESP32 dev board (regulator out on the 3V3 pin)")
