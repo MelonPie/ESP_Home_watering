@@ -148,13 +148,18 @@ sensor:
     update_interval: 5s
     unit_of_measurement: "L/min"
     filters:
-      - multiply: 1.0  # TODO: calibrate with 5L can → 5.0 / pulse_count
+      # Calibration: 1700 pulses measured for 5 L
+      - calibrate_linear:
+          - 0.0 -> 0.0
+          - 1700.0 -> 5.0
     total:
       unit_of_measurement: 'L'
       name: 'Menge'
       id: flow_total
       filters:
-        - multiply: 1.0  # TODO: calibrate with 5L can → 5.0 / pulse_count
+        - calibrate_linear:
+            - 0.0 -> 0.0
+            - 1700.0 -> 5.0
 
 ####################################################
 # Text sensors
