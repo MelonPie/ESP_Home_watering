@@ -2,7 +2,7 @@
 """Generate KiCad 9.0 schematic from ESPHome YAML analysis.
 
 Architecture:
-  ESP32 (GPIO23=data, GPIO18=clock, GPIO5=latch, GPIO16=/OE)
+  ESP32 (GPIO23=data, GPIO18=clock, GPIO17=latch, GPIO16=/OE)
     -> 3x SN74HC595 shift registers (chained, 24 outputs, 20 used)
       -> 3x ULN2003 Darlington driver arrays (21 channels, 20 used)
         -> 20 solenoid valve connectors (+12V switched to GND)
@@ -20,7 +20,7 @@ def uid():
 # === Pin mapping from YAML ===
 SHIFT_REG_DATA  = "GPIO23"
 SHIFT_REG_CLOCK = "GPIO18"
-SHIFT_REG_LATCH = "GPIO5"
+SHIFT_REG_LATCH = "GPIO17"
 SHIFT_REG_OE    = "GPIO16"
 NUM_ZONES = 20
 NUM_SR = 3       # 3x SN74HC595

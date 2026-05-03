@@ -64,7 +64,7 @@ sn74hc595:
   - id: 'sn74hc595_hub'
     data_pin: GPIO23
     clock_pin: GPIO18
-    latch_pin: GPIO5
+    latch_pin: GPIO17
     oe_pin:
       number: GPIO16
       mode:

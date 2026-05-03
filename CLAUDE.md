@@ -48,7 +48,7 @@ Static arrays (`liters_start[]`, `safety_remaining[]`, etc.) and pointer arrays 
 
 ### Shift register output
 
-20 valve outputs via 3 chained SN74HC595 registers (GPIO23=data, GPIO18=clock, GPIO5=latch, GPIO16=/OE). GPIO switches `pin0`–`pin19` map to shift register outputs 0–19.
+20 valve outputs via 3 chained SN74HC595 registers (GPIO23=data, GPIO18=clock, GPIO17=latch, GPIO16=/OE). GPIO switches `pin0`–`pin19` map to shift register outputs 0–19.
 
 The data/clock/latch lines were originally on GPIO14/13/12, but those are unsuitable: GPIO12 is a strapping pin (flash voltage select) and GPIO14/15 emit bootloader debug pulses on reset, which clocked random data into the SRs and energized valves at boot. The `/OE` line on all three SRs is tied together and pulled up to +5V by a 10k resistor (R3); ESP32 GPIO16 drives it open-drain (`mode: { output: true, open_drain: true }`). While GPIO16 is in reset / high-Z the pull-up keeps `/OE` high, disabling all SR outputs. ESPHome's `sn74hc595` component releases `/OE` low only after shifting in zeros, so valves stay off through every reset.
 
